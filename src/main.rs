@@ -1,4 +1,6 @@
 use blob;
+use anchor_client;
+use borsh::{BorshDeserialize, BorshSerialize};
 pub use solana_client::rpc_client::RpcClient;
 pub use solana_sdk::{
     instruction::{AccountMeta, Instruction},
@@ -8,32 +10,53 @@ pub use solana_sdk::{
     transaction::Transaction,
     transaction_context,
 };
-use solana_sdk::{message::Message, signature::Signature};
+use solana_sdk::{message::Message, signature::Signature, signer::EncodableKey};
 
-pub fn signed_call() -> Result<Signature, Box<dyn std::error::Error>> {
+
+// function signatures
+const INITIALIZE_DISCRIMINANT: [u8; 8] = [175, 175, 109, 31, 13, 152, 155, 237];
+const UPDATE_DISCRIMINANT: [u8; 8] = [18, 162, 49, 169, 237, 193, 10, 33];
+
+
+#[derive(BorshSerialize, BorshDeserialize)]
+#[borsh(crate = "borsh")]
+pub struct Initialize {}
+
+#[derive(BorshSerialize, BorshDeserialize)]
+#[borsh(crate = "borsh")]
+pub struct UpdateBlob {
+    pub data: Vec<u8>,
+}
+
+
+pub fn initialize_program() -> Result<Signature, Box<dyn std::error::Error>> {
     let rpc_connection = RpcClient::new("https://api.devnet.solana.com");
-    let program_id = Pubkey::new_unique(); //TODO: use correct program id
+    let program_id = blob::ID;
+
     let (blob_account, _) = Pubkey::find_program_address(&[&b"blob"[..]], &program_id);
-    let payer = Keypair::new();
 
-    // request 5 sol for payer 
-    request_airdrop(&payer, &rpc_connection, 5)?;
+    let payer: Keypair =
+        Keypair::read_from_file("/Users/cenwadike/.config/solana/solfate-dev.json")?;
+    
+    println!("program id: {:?}", program_id);
+    println!("payer: {:?}", payer.pubkey());
+    println!("blob account: {:?}", blob_account);
 
-    // construct instruction data
-    let instruction_data = blob::instruction::UpdateBlob {
-        data: "new data".to_string(),
-    };
+    let instruction_data = Initialize {};
 
     // set up accounts
     let accounts = vec![
         AccountMeta::new(blob_account, false),
         AccountMeta::new(payer.pubkey(), true),
-        AccountMeta::new(system_program::ID, false),
+        AccountMeta::new(system_program::id(), false),
     ];
 
     // construct instruction
-    let ix =
-        Instruction::new_with_bincode(program_id.clone(), &instruction_data.data, accounts.clone());
+    let ix = Instruction::new_with_borsh(
+        program_id.clone(),
+        &(INITIALIZE_DISCRIMINANT, instruction_data),
+        accounts.clone(),
+    );
 
     // get latest block hash
     let blockhash = rpc_connection
@@ -50,26 +73,82 @@ pub fn signed_call() -> Result<Signature, Box<dyn std::error::Error>> {
     tx.sign(&[&payer], tx.message.recent_blockhash);
 
     // send and confirm transaction
-    let tx_signature = rpc_connection
-        .send_and_confirm_transaction(&tx)
-        .expect("transaction successful");
+    let tx_signature = rpc_connection.send_and_confirm_transaction(&tx)?;
 
+    println!("Initialization successful. Tx signature: {:?}", tx_signature);
     Ok(tx_signature)
 }
 
-/// Requests that AMOUNT lamports are transfered to PAYER via a RPC
-/// call over CONNECTION.
-///
-/// Airdrops are only avaliable on test networks.
-pub fn request_airdrop(payer: &Keypair, connection: &RpcClient, amount: u64) -> Result<(), Box<dyn std::error::Error>> {
-    let sig = connection.request_airdrop(&payer.pubkey(), amount)?;
-    assert!(connection.confirm_transaction(&sig)?);
-    Ok(())
+pub fn update() -> Result<Signature, Box<dyn std::error::Error>> {
+    let rpc_connection = RpcClient::new("https://api.devnet.solana.com");
+    let program_id = blob::ID;
+
+    let (blob_account, _) = Pubkey::find_program_address(&[&b"blob"[..]], &program_id);
+
+    let payer: Keypair =
+        Keypair::read_from_file("/Users/cenwadike/.config/solana/solfate-dev.json")?;
+
+    println!("program id: {:?}", program_id);
+    println!("payer: {:?}", payer.pubkey());
+    println!("blob account: {:?}", blob_account);
+
+    //  construct instruction data
+    let instruction_data = UpdateBlob {
+        data: "another data".as_bytes().to_vec(),
+    };
+
+    // set up accounts
+    let accounts = vec![
+        AccountMeta::new(blob_account, false),
+        AccountMeta::new(payer.pubkey(), true),
+        AccountMeta::new(system_program::id(), false),
+    ];
+
+    // construct instruction
+    let ix = Instruction::new_with_borsh(
+        program_id.clone(),
+        &(UPDATE_DISCRIMINANT, instruction_data),
+        accounts.clone(),
+    );
+
+    // get latest block hash
+    let blockhash = rpc_connection
+        .get_latest_blockhash()
+        .expect("latest blockhash");
+
+    // construct message
+    let msg = Message::new_with_blockhash(&[ix], Some(&payer.pubkey()), &blockhash);
+
+    //construct transaction
+    let mut tx = Transaction::new_unsigned(msg);
+
+    // sign transaction
+    tx.sign(&[&payer], tx.message.recent_blockhash);
+
+    // send and confirm transaction
+    let tx_signature = rpc_connection.send_and_confirm_transaction(&tx)?;
+
+    println!("Update blob successful. Tx signature: {:?}", tx_signature);
+    Ok(tx_signature)
+}
+
+pub fn get_discriminant(namespace: &str, name: &str) -> [u8; 8] {
+    let preimage = format!("{}:{}", namespace, name);
+
+    let mut sighash = [0u8; 8];
+    sighash.copy_from_slice(
+        &anchor_client::anchor_lang::solana_program::hash::hash(preimage.as_bytes()).to_bytes()
+            [..8],
+    );
+    sighash
 }
 
 fn main() {
     println!("Hello, world!");
 
-    // call signed_call function
-    signed_call().unwrap();
+    initialize_program().expect("error");
+
+    update().expect("error");
+
+    println!("{:?}", get_discriminant("global", "update_blob"));
 }
