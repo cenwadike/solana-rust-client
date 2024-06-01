@@ -749,12 +749,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
 
 [[package]]
-name = "base64"
-version = "0.22.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
-
-[[package]]
 name = "base64ct"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3474,27 +3468,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "solana-address-lookup-table-program"
-version = "1.18.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b9d6b9faa090d38028778dbefe6e9b8cf98e2152edd03a66ad97c94c6f89c69"
-dependencies = [
- "bincode",
- "bytemuck",
- "log",
- "num-derive 0.4.2",
- "num-traits",
- "rustc_version",
- "serde",
- "solana-frozen-abi",
- "solana-frozen-abi-macro",
- "solana-program",
- "solana-program-runtime",
- "solana-sdk",
- "thiserror",
-]
-
-[[package]]
 name = "solana-clap-utils"
 version = "1.18.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3934,17 +3907,11 @@ name = "solana-rust-client"
 version = "0.1.0"
 dependencies = [
  "anchor-client",
- "base64 0.22.1",
- "bincode",
  "blob",
  "borsh 1.5.0",
  "dotenv",
- "serde_json",
- "solana-address-lookup-table-program",
  "solana-client",
- "solana-program",
  "solana-sdk",
- "solana-transaction-status",
 ]
 
 [[package]]
